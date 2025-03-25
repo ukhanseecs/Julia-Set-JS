@@ -8,8 +8,21 @@ let canvas_height=window.innerHeight;
 // These appear to be undeclared globals
 let mouse_x, mouse_y;
 
-let show = false
+let show = false;
+// Add color mode tracking
+let colorMode = "colorful"; // Default to colorful
+
 addEventListener('click', onMouseClick);
+
+// Add event listener for color mode selection
+document.querySelectorAll('input[name="colorMode"]').forEach(input => {
+    input.addEventListener('change', function() {
+        colorMode = this.value;
+        if (show) {
+            DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+        }
+    });
+});
 
 const juliaParams = {
     c: new Complex(-0.8, 0.156),
@@ -39,6 +52,16 @@ function IsInJuliaSet(c, x, y, maxIterations, scale){
 }
 
 function getColor(iterations, maxIterations) {
+    // Black & white mode
+    if (colorMode === "blackwhite") {
+        if (iterations === maxIterations) {
+            return [255, 255, 255, 255]; // White for points in the set
+        } else {
+            return [0, 0, 0, 255]; // Black for points outside the set
+        }
+    }
+    
+    // Colorful mode (original implementation)
     if (iterations === maxIterations) return [0, 0, 0, 255]; // Black for set
     
     // Map iteration count to a smooth color gradient
@@ -86,6 +109,9 @@ function DrawJuliaSet(c, maxIterations, scale){
     const imageData = ctx.createImageData(canvas_width, canvas_height);
     const data = imageData.data;
     
+    // Set background color based on mode
+    const backgroundColor = colorMode === "blackwhite" ? 0 : 255; // Black bg for B&W mode, white for colorful
+    
     for(let y = 0; y < canvas_height; y++){
         for(let x = 0; x < canvas_width; x++){
             let iterations = IsInJuliaSet(c, x, y, maxIterations, scale);
@@ -116,13 +142,13 @@ function Loop(){
   
    // Clear screen
    ctx.beginPath();
-   ctx.fillStyle = "white";
+   ctx.fillStyle = colorMode === "blackwhite" ? "black" : "white";
    ctx.fillRect(0, 0, canvas.width, canvas.height);
    // make_checkerboard();
 
    // Draw Julia set if enabled
    if (show){
-        DrawJuliaSet(new Complex(-0.8, 0.156), 100, 300);
+        DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
    } 
 }
 
