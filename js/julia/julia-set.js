@@ -27,7 +27,7 @@ export class JuliaSet {
     
     calculateIterations(x, y) {
         const { c, maxIterations, scale, escapeRadius, center } = this.params;
-        let z = new Complex((x - center.x) / scale, (y - center.y) / scale);
+        let z = new Complex((x - center.x) / scale, (center.y - y) / scale);
 
         for(let i = 0; i < maxIterations; i++) {
             z = z.multiply(z).add(c);
