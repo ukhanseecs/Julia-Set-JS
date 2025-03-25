@@ -259,11 +259,20 @@ function setupGUI(isUsingWebGL) {
     const renderFolder = gui.addFolder('Render Settings');
     renderFolder.add(config, 'maxIterations', 10, 500, 1).name('Max Iterations').onChange(function(value) {
         juliaParams.maxIterations = value;
-        if (isUsingWebGL) {
-            webglRenderer.updateParams({ maxIterations: value });
-        } else {
+        
+        // Force a complete update with the new maxIterations
+        const { isWebGL } = getCanvasContext();
+        if (isWebGL && webglRenderer) {
+            // Ensure we explicitly set the value in the params
+            webglRenderer.params.maxIterations = value;
+            // Force full update and redraw
+            show = true;
+        } else if (juliaSet) {
             juliaSet.params.maxIterations = value;
+            // Force redraw
+            show = true;
         }
+        
         updateJuliaSet();
     });
     
@@ -324,12 +333,12 @@ function setupGUI(isUsingWebGL) {
         const webglConfig = {
             maxIterationsHigh: 1000,
             applyHighIterations: function() {
-                juliaParams.maxIterations = webglConfig.maxIterationsHigh;
-                // Also update the main config object
-                config.maxIterations = webglConfig.maxIterationsHigh;
+                const newValue = webglConfig.maxIterationsHigh;
+                juliaParams.maxIterations = newValue;
+                config.maxIterations = newValue;
                 
-                // Update the webgl renderer
-                webglRenderer.updateParams({ maxIterations: webglConfig.maxIterationsHigh });
+                // Ensure we explicitly set the value in the renderer
+                webglRenderer.params.maxIterations = newValue;
                 
                 // Update main iterations slider
                 for (let controller of Object.values(gui.__folders['Render Settings'].__controllers)) {
@@ -338,6 +347,8 @@ function setupGUI(isUsingWebGL) {
                     }
                 }
                 
+                // Force a redraw
+                show = true;
                 updateJuliaSet();
             }
         };
@@ -362,11 +373,21 @@ function updateJuliaParameter() {
     updateJuliaSet();
 }
 
-// Modify the updateJuliaSet function
+// Modify the updateJuliaSet function to properly handle WebGL changes
 function updateJuliaSet() {
     const { isWebGL } = getCanvasContext();
     
+    // Ensure we clear and redraw when parameters change
+    clearCanvas(colorMode);
+    
     if (isWebGL && webglRenderer) {
+        // Force WebGL to update all uniforms on each redraw
+        webglRenderer.updateParams({
+            c: juliaParams.c,
+            maxIterations: juliaParams.maxIterations,
+            scale: juliaParams.scale,
+            colorMode: colorMode
+        });
         webglRenderer.draw();
     } else if (juliaSet) {
         juliaSet.draw();
@@ -390,6 +411,7 @@ function onMouseClick(event) {
     updateJuliaSet();
 }
 
+// Update the loop function to ensure it clears properly
 function Loop() {
    // Since Julia sets only need to be redrawn when parameters change,
    // we can optimize this function to do less work
@@ -401,10 +423,8 @@ function Loop() {
    
    // Request a new frame (we keep this to handle any future animations if needed)
    animationID = requestAnimationFrame(() => {
-       // Only clear and update initially or when parameters have changed
+       // Only update initially or when parameters have changed
        if (show) {
-           // Ensure we pass the colorMode to clearCanvas
-           clearCanvas(colorMode);
            updateJuliaSet();
            
            // Once drawn, no need to redraw until parameters change
