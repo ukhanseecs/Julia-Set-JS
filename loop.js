@@ -148,8 +148,6 @@ function onMouseWheel(event) {
     
     // Update scale
     config.scale *= zoomFactor;
-    juliaParams.scale = config.scale;
-    
     // Keep scale within reasonable bounds
     config.scale = Math.max(50, Math.min(5000, config.scale));
     juliaParams.scale = config.scale;
@@ -158,15 +156,14 @@ function onMouseWheel(event) {
     for (let controller of Object.values(gui.__controllers)) {
         if (controller.property === 'scale') {
             controller.updateDisplay();
-            break;
         }
     }
     
-    // Redraw Julia set with new scale
     if (show) {
         updateJuliaSet();
     }
 }
+
 
 // Update the GUI setup to include WebGL option
 function setupGUI(isUsingWebGL) {
@@ -206,7 +203,9 @@ function setupGUI(isUsingWebGL) {
         }
         updateJuliaSet();
     });
-    renderFolder.add(config, 'scale', 50, 1000, 1).name('Scale').onChange(function(value) {
+    
+    // Fixed scale controller (removed duplicate)
+    const scaleController = renderFolder.add(config, 'scale', 50, 1000, 1).name('Scale').onChange(function(value) {
         juliaParams.scale = value;
         if (isUsingWebGL) {
             webglRenderer.updateParams({ scale: value });
@@ -216,7 +215,6 @@ function setupGUI(isUsingWebGL) {
         updateJuliaSet();
     });
     
-    // Presets
     gui.add(config, 'presets', Object.keys(presets)).name('Presets').onChange(function(preset) {
         const params = presets[preset];
         config.realPart = params.re;
@@ -302,25 +300,27 @@ function onMouseClick(event) {
 }
 
 function Loop() {
-   animationID = requestAnimationFrame(Loop);
+   // Since Julia sets only need to be redrawn when parameters change,
+   // we can optimize this function to do less work
 
-   let msNow = window.performance.now();
-   let dt = msNow - msPrev;
-
-   if(dt < msPerFrame) return;
-   
-   // Fix timing logic
-   let excessTime = dt % msPerFrame;
-   msPrev = msNow - excessTime;
-   dt = dt / 1000;
-  
-   // Clear screen
-   clearCanvas(colorMode);
-
-   // Update Julia set to always use the current parameter values
-   if (show) {
-        updateJuliaSet();
+   // Cancel the previous animation frame
+   if (animationID) {
+       cancelAnimationFrame(animationID);
    }
+   
+   // Request a new frame (we keep this to handle any future animations if needed)
+   animationID = requestAnimationFrame(() => {
+       // Only clear and update initially or when parameters have changed
+       if (show) {
+           // Ensure we pass the colorMode to clearCanvas
+           clearCanvas(colorMode);
+           updateJuliaSet();
+           
+           // Once drawn, no need to redraw until parameters change
+           show = false;
+       }
+   });
 }
 
-Loop();
+// Initial draw
+updateJuliaSet();
