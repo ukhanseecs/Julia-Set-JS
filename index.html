@@ -5,15 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Julia Set Explorer</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100; /* Ensure controls are above canvas */
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .slider-container label {
+            width: 100px;
+        }
+        .slider-container input[type="range"] {
+            width: 150px;
+        }
+        .slider-container output {
+            width: 60px;
+            text-align: right;
+        }
+    </style>
 </head>
 <body>
     <canvas id="canvas1"></canvas>
-    <div id="controls">
-        <span>Julia Set Style: </span>
-        <label><input type="radio" name="colorMode" value="colorful" checked> Colorful</label>
-        <label><input type="radio" name="colorMode" value="blackwhite"> Black & White</label>
+    <div id="controls" onclick="event.stopPropagation();">
+        <div>
+            <span>Julia Set Style: </span>
+            <label onclick="event.stopPropagation();"><input type="radio" name="colorMode" value="colorful" checked onclick="event.stopPropagation();"> Colorful</label>
+            <label onclick="event.stopPropagation();"><input type="radio" name="colorMode" value="blackwhite" onclick="event.stopPropagation();"> Black & White</label>
+        </div>
+        
+        <div class="slider-container" onclick="event.stopPropagation();">
+            <label for="realPart">Real (c.re):</label>
+            <input type="range" id="realPart" min="-2" max="2" step="0.01" value="-0.8" onclick="event.stopPropagation();">
+            <output for="realPart" id="realValue">-0.8</output>
+        </div>
+        
+        <div class="slider-container" onclick="event.stopPropagation();">
+            <label for="imagPart">Imaginary (c.im):</label>
+            <input type="range" id="imagPart" min="-2" max="2" step="0.01" value="0.156" onclick="event.stopPropagation();">
+            <output for="imagPart" id="imagValue">0.156</output>
+        </div>
+        
+        <div>
+            <small>Click anywhere on screen to set center point</small>
+        </div>
     </div>
-    <!-- Load as ES6 modules -->
-    <script type="module" src="js/app.js"></script>
+    
+    <!-- Make sure we're loading the correct script paths -->
+    <script>
+        // Get canvas context immediately to ensure it's available for the loop.js script
+        const canvas = document.getElementById('canvas1');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    </script>
+    <script src="loop.js"></script>
 </body>
 </html>
