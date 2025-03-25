@@ -37,13 +37,42 @@ let mouse_x, mouse_y;
 let show = false;
 let colorMode = "colorful"; // Default to colorful
 
-const juliaParams = {
-    c: new Complex(-0.8, 0.156),
+// Configuration object for dat.gui
+const config = {
+    colorMode: 'colorful',
+    realPart: -0.8,
+    imaginaryPart: 0.156,
     maxIterations: 100,
     scale: 300,
+    resetView: function() {
+        this.realPart = -0.8;
+        this.imaginaryPart = 0.156;
+        this.scale = 300;
+        juliaParams.center = { x: canvas_width / 2, y: canvas_height / 2 };
+        updateJuliaSet();
+    },
+    presets: 'default'
+};
+
+// Presets for interesting Julia sets
+const presets = {
+    'default': { re: -0.8, im: 0.156 },
+    'dendrite': { re: 0, im: 1 },
+    'spiral': { re: -0.75, im: 0.11 },
+    'rabbit': { re: -0.123, im: 0.745 },
+    'siegel disk': { re: -0.391, im: -0.587 }
+};
+
+const juliaParams = {
+    c: new Complex(config.realPart, config.imaginaryPart),
+    maxIterations: config.maxIterations,
+    scale: config.scale,
     escapeRadius: 2,
     center: { x: 0, y: 0 }
 };
+
+// GUI instance
+let gui;
 
 // Ensure all DOM interactions happen after the document is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -68,92 +97,105 @@ document.addEventListener('DOMContentLoaded', function() {
         const zoomFactor = event.deltaY < 0 ? 1.2 : 0.8; // Zoom in or out
         
         // Update scale
-        juliaParams.scale *= zoomFactor;
+        config.scale *= zoomFactor;
+        juliaParams.scale = config.scale;
         
         // Keep scale within reasonable bounds
-        juliaParams.scale = Math.max(50, Math.min(5000, juliaParams.scale));
+        config.scale = Math.max(50, Math.min(5000, config.scale));
+        juliaParams.scale = config.scale;
         
-        // If zooming while moving the mouse, adjust the center to keep the mouse position fixed relative to the fractal
-        if (zoomFactor !== 1) {
-            // No need to update center on every zoom if we're already using the mouse position as center
-            // juliaParams.center = { x: mouseX, y: mouseY };
+        // Update the GUI slider
+        for (let controller of Object.values(gui.__controllers)) {
+            if (controller.property === 'scale') {
+                controller.updateDisplay();
+                break;
+            }
         }
         
         // Redraw Julia set with new scale
         if (show) {
-            DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+            updateJuliaSet();
         }
     });
     
-    // Get the control elements
-    const controls = document.getElementById('controls');
-    if (!controls) {
-        console.error('Controls not found!');
-        return;
-    }
+    // Setup dat.gui
+    setupGUI();
     
-    // Stop propagation of events from controls to canvas
-    controls.addEventListener('click', function(event) {
-        event.stopPropagation();
-    });
-    
-    // Setup color mode radio buttons
-    document.querySelectorAll('input[name="colorMode"]').forEach(input => {
-        input.addEventListener('change', function(event) {
-            event.stopPropagation(); // Prevent event from reaching canvas
-            colorMode = this.value;
-            if (show) {
-                DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
-            }
-        });
-    });
-    
-    // Setup sliders
-    const realSlider = document.getElementById('realPart');
-    const imagSlider = document.getElementById('imagPart');
-    const realOutput = document.getElementById('realValue');
-    const imagOutput = document.getElementById('imagValue');
-    
-    if (realSlider && imagSlider && realOutput && imagOutput) {
-        // Initialize slider values
-        realSlider.value = juliaParams.c.re;
-        imagSlider.value = juliaParams.c.im;
-        realOutput.textContent = juliaParams.c.re.toFixed(3);
-        imagOutput.textContent = juliaParams.c.im.toFixed(3);
-        
-        // Add event listeners with propagation stopped
-        realSlider.addEventListener('input', function(event) {
-            event.stopPropagation(); // Prevent event from reaching canvas
-            const realValue = parseFloat(this.value);
-            realOutput.textContent = realValue.toFixed(3);
-            juliaParams.c = new Complex(realValue, juliaParams.c.im);
-            if (show) {
-                DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
-            }
-        });
-        
-        imagSlider.addEventListener('input', function(event) {
-            event.stopPropagation(); // Prevent event from reaching canvas
-            const imagValue = parseFloat(this.value);
-            imagOutput.textContent = imagValue.toFixed(3);
-            juliaParams.c = new Complex(juliaParams.c.re, imagValue);
-            if (show) {
-                DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
-            }
-        });
-    } else {
-        console.error('Slider elements not found!');
-    }
+    // Set initial center point
+    juliaParams.center = { x: canvas_width / 2, y: canvas_height / 2 };
     
     // Create a first Julia set when page loads
     show = true;
-    DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+    updateJuliaSet();
 });
+
+function setupGUI() {
+    gui = new dat.GUI({ width: 300 });
+    
+    // Color mode
+    gui.add(config, 'colorMode', ['colorful', 'blackwhite']).name('Color Mode').onChange(function(value) {
+        colorMode = value;
+        updateJuliaSet();
+    });
+    
+    // Complex parameter controls
+    const complexFolder = gui.addFolder('Complex Parameter (c)');
+    complexFolder.add(config, 'realPart', -2, 2, 0.001).name('Real Part').onChange(updateJuliaParameter);
+    complexFolder.add(config, 'imaginaryPart', -2, 2, 0.001).name('Imaginary Part').onChange(updateJuliaParameter);
+    complexFolder.open();
+    
+    // Render settings
+    const renderFolder = gui.addFolder('Render Settings');
+    renderFolder.add(config, 'maxIterations', 10, 500, 1).name('Max Iterations').onChange(function(value) {
+        juliaParams.maxIterations = value;
+        updateJuliaSet();
+    });
+    renderFolder.add(config, 'scale', 50, 1000, 1).name('Scale').onChange(function(value) {
+        juliaParams.scale = value;
+        updateJuliaSet();
+    });
+    
+    // Presets
+    gui.add(config, 'presets', Object.keys(presets)).name('Presets').onChange(function(preset) {
+        const params = presets[preset];
+        config.realPart = params.re;
+        config.imaginaryPart = params.im;
+        updateJuliaParameter();
+        
+        // Update GUI controllers
+        for (let controller of Object.values(gui.__controllers)) {
+            if (controller.property === 'realPart' || controller.property === 'imaginaryPart') {
+                controller.updateDisplay();
+            }
+        }
+    });
+    
+    // Reset view button
+    gui.add(config, 'resetView').name('Reset View');
+    
+    // Instructions
+    const instructionsFolder = gui.addFolder('Instructions');
+    const instructions = {
+        note1: 'Click: Set center point',
+        note2: 'Mouse wheel: Zoom in/out'
+    };
+    instructionsFolder.add(instructions, 'note1').name('');
+    instructionsFolder.add(instructions, 'note2').name('');
+}
+
+function updateJuliaParameter() {
+    juliaParams.c = new Complex(config.realPart, config.imaginaryPart);
+    updateJuliaSet();
+}
+
+function updateJuliaSet() {
+    DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+}
 
 function onMouseClick(event) {
     juliaParams.center = { x: event.clientX, y: event.clientY };
     show = true;
-    DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+    updateJuliaSet();
 }
 
 function IsInJuliaSet(c, x, y, maxIterations, scale){
@@ -262,11 +304,10 @@ function Loop(){
    ctx.beginPath();
    ctx.fillStyle = colorMode === "blackwhite" ? "black" : "white";
    ctx.fillRect(0, 0, canvas.width, canvas.height);
-   // make_checkerboard();
 
    // Update Julia set to always use the current parameter values
    if (show){
-        DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+        updateJuliaSet();
    } 
 }
 
