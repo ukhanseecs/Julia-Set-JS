@@ -56,6 +56,35 @@ document.addEventListener('DOMContentLoaded', function() {
     
     canvas.addEventListener('click', onMouseClick);
     
+    // Add wheel event listener for zooming
+    canvas.addEventListener('wheel', function(event) {
+        event.preventDefault(); // Prevent page scrolling
+        
+        // Get mouse position
+        const mouseX = event.clientX;
+        const mouseY = event.clientY;
+        
+        // Calculate zoom factor based on wheel direction
+        const zoomFactor = event.deltaY < 0 ? 1.2 : 0.8; // Zoom in or out
+        
+        // Update scale
+        juliaParams.scale *= zoomFactor;
+        
+        // Keep scale within reasonable bounds
+        juliaParams.scale = Math.max(50, Math.min(5000, juliaParams.scale));
+        
+        // If zooming while moving the mouse, adjust the center to keep the mouse position fixed relative to the fractal
+        if (zoomFactor !== 1) {
+            // No need to update center on every zoom if we're already using the mouse position as center
+            // juliaParams.center = { x: mouseX, y: mouseY };
+        }
+        
+        // Redraw Julia set with new scale
+        if (show) {
+            DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+        }
+    });
+    
     // Get the control elements
     const controls = document.getElementById('controls');
     if (!controls) {
