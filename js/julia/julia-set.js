@@ -40,7 +40,7 @@ export class JuliaSet {
     
     draw() {
         const { ctx, width, height } = getCanvasContext();
-        const { c, maxIterations, scale, colorMode } = this.params;
+        const { maxIterations, colorMode } = this.params;
         
         const imageData = ctx.createImageData(width, height);
         const data = imageData.data;

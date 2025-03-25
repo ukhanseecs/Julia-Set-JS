@@ -6,8 +6,7 @@ let msPrev = window.performance.now();
 const fps = 60;
 const msPerFrame = 1000 / fps;
 
-let canvas, ctx, canvas_width, canvas_height;
-let animationID;
+let canvas, canvas_width, canvas_height;
 
 let show = false;
 let colorMode = "colorful"; // Default to colorful
