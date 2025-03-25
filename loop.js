@@ -5,25 +5,81 @@ const msPerFrame = 1000 / fps;
 let canvas_width = window.innerWidth;
 let canvas_height=window.innerHeight;
 
-let show = false
-addEventListener('click', function(event) {
-    mouse_x = event.clientX;
-    mouse_y = event.clientY;
-    show = true
-});
+// These appear to be undeclared globals
+let mouse_x, mouse_y;
 
-const escapeRadius = 2;
+let show = false
+addEventListener('click', onMouseClick);
+
+const juliaParams = {
+    c: new Complex(-0.8, 0.156),
+    maxIterations: 100,
+    scale: 300,
+    escapeRadius: 2,
+    center: { x: 0, y: 0 }
+};
+
+function onMouseClick(event) {
+    juliaParams.center = { x: event.clientX, y: event.clientY };
+    show = true; // Add this line to enable drawing
+    DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale); // Pass parameters
+}
+
 function IsInJuliaSet(c, x, y, maxIterations, scale){
     // Create z directly with the scaled coordinates
-    let z = new Complex((x - mouse_x) / scale, (y - mouse_y) / scale);
+    let z = new Complex((x - juliaParams.center.x) / scale, (y - juliaParams.center.y) / scale);
 
     for(let i = 0; i < maxIterations; i++){
         z = z.multiply(z).add(c);
-        if(z.abs() > escapeRadius){
+        if(z.abs() > juliaParams.escapeRadius){
             return i;
         }
     }
     return maxIterations;
+}
+
+function getColor(iterations, maxIterations) {
+    if (iterations === maxIterations) return [0, 0, 0, 255]; // Black for set
+    
+    // Map iteration count to a smooth color gradient
+    const hue = 360 * iterations / maxIterations;
+    const saturation = 100;
+    const lightness = 50;
+    
+    // Convert HSL to RGB (simplified example)
+    const rgb = hslToRgb(hue, saturation, lightness);
+    return [...rgb, 255]; // RGB with alpha
+}
+
+// Add this helper function
+function hslToRgb(h, s, l) {
+    h /= 360;
+    s /= 100;
+    l /= 100;
+    
+    let r, g, b;
+    
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+    
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
 function DrawJuliaSet(c, maxIterations, scale){
@@ -33,13 +89,12 @@ function DrawJuliaSet(c, maxIterations, scale){
     for(let y = 0; y < canvas_height; y++){
         for(let x = 0; x < canvas_width; x++){
             let iterations = IsInJuliaSet(c, x, y, maxIterations, scale);
-            let color = Math.floor(iterations / maxIterations * 255);
-            
+            const colorValues = getColor(iterations, maxIterations);
             const index = (y * canvas_width + x) * 4;
-            data[index] = color;     // R
-            data[index + 1] = color; // G
-            data[index + 2] = color; // B
-            data[index + 3] = 255;   // A (fully opaque)
+            data[index] = colorValues[0];
+            data[index + 1] = colorValues[1];
+            data[index + 2] = colorValues[2];
+            data[index + 3] = colorValues[3];
         }
     }
     
