@@ -26,7 +26,33 @@ const config = {
         this.realPart = -0.8;
         this.imaginaryPart = 0.156;
         this.scale = 300;
+        this.maxIterations = 100; // Also reset iterations to default
         juliaParams.center = { x: canvas_width / 2, y: canvas_height / 2 };
+        
+        // Update all related parameters
+        juliaParams.c = new Complex(this.realPart, this.imaginaryPart);
+        juliaParams.scale = this.scale;
+        juliaParams.maxIterations = this.maxIterations;
+        
+        // Update UI controllers
+        updateAllControllers();
+        
+        // Update renderers
+        const { isWebGL } = getCanvasContext();
+        if (isWebGL && webglRenderer) {
+            webglRenderer.updateParams({
+                c: juliaParams.c,
+                scale: juliaParams.scale,
+                maxIterations: juliaParams.maxIterations
+            });
+            webglRenderer.setCenter(juliaParams.center.x, juliaParams.center.y);
+        } else if (juliaSet) {
+            juliaSet.params.c = juliaParams.c;
+            juliaSet.params.scale = juliaParams.scale;
+            juliaSet.params.maxIterations = juliaParams.maxIterations;
+            juliaSet.setCenter(juliaParams.center.x, juliaParams.center.y);
+        }
+        
         updateJuliaSet();
     },
     presets: 'default'
@@ -152,18 +178,55 @@ function onMouseWheel(event) {
     config.scale = Math.max(50, Math.min(5000, config.scale));
     juliaParams.scale = config.scale;
     
-    // Update the GUI slider
+    // Update the renderer directly
+    const { isWebGL } = getCanvasContext();
+    if (isWebGL && webglRenderer) {
+        webglRenderer.updateParams({ scale: config.scale });
+    } else if (juliaSet) {
+        // This line was missing - directly update the juliaSet params
+        juliaSet.params.scale = config.scale;
+    }
+    
+    // Update the GUI slider - more robust way to find the right controller
+    if (gui && gui.__folders['Render Settings']) {
+        for (let controller of Object.values(gui.__folders['Render Settings'].__controllers)) {
+            if (controller.property === 'scale') {
+                controller.updateDisplay();
+                break;
+            }
+        }
+    }
+    
+    show = true; // Ensure we redraw
+    updateJuliaSet();
+}
+
+// Add this new helper function to update all controllers
+function updateAllControllers() {
+    if (!gui) return;
+    
+    // Update all controllers
     for (let controller of Object.values(gui.__controllers)) {
-        if (controller.property === 'scale') {
+        if (typeof controller.property === 'string' && 
+            (controller.property in config) && 
+            controller.property !== 'presets' && 
+            controller.property !== 'useWebGL') {
             controller.updateDisplay();
         }
     }
     
-    if (show) {
-        updateJuliaSet();
+    // Also update any controllers in folders
+    for (let folder of Object.values(gui.__folders)) {
+        for (let controller of Object.values(folder.__controllers)) {
+            if (typeof controller.property === 'string' && 
+                (controller.property in config) && 
+                controller.property !== 'presets' && 
+                controller.property !== 'useWebGL') {
+                controller.updateDisplay();
+            }
+        }
     }
 }
-
 
 // Update the GUI setup to include WebGL option
 function setupGUI(isUsingWebGL) {
@@ -219,14 +282,28 @@ function setupGUI(isUsingWebGL) {
         const params = presets[preset];
         config.realPart = params.re;
         config.imaginaryPart = params.im;
-        updateJuliaParameter();
         
-        // Update GUI controllers
-        for (let controller of Object.values(gui.__controllers)) {
-            if (controller.property === 'realPart' || controller.property === 'imaginaryPart') {
-                controller.updateDisplay();
+        // Update the Julia parameter
+        juliaParams.c = new Complex(config.realPart, config.imaginaryPart);
+        
+        // Update renderers
+        const { isWebGL } = getCanvasContext();
+        if (isWebGL && webglRenderer) {
+            webglRenderer.updateParams({ c: juliaParams.c });
+        } else if (juliaSet) {
+            juliaSet.params.c = juliaParams.c;
+        }
+        
+        // Update all relevant controllers
+        if (gui.__folders['Complex Parameter (c)']) {
+            for (let controller of Object.values(gui.__folders['Complex Parameter (c)'].__controllers)) {
+                if (controller.property === 'realPart' || controller.property === 'imaginaryPart') {
+                    controller.updateDisplay();
+                }
             }
         }
+        
+        updateJuliaSet();
     });
     
     // Reset view button
@@ -248,7 +325,19 @@ function setupGUI(isUsingWebGL) {
             maxIterationsHigh: 1000,
             applyHighIterations: function() {
                 juliaParams.maxIterations = webglConfig.maxIterationsHigh;
+                // Also update the main config object
+                config.maxIterations = webglConfig.maxIterationsHigh;
+                
+                // Update the webgl renderer
                 webglRenderer.updateParams({ maxIterations: webglConfig.maxIterationsHigh });
+                
+                // Update main iterations slider
+                for (let controller of Object.values(gui.__folders['Render Settings'].__controllers)) {
+                    if (controller.property === 'maxIterations') {
+                        controller.updateDisplay();
+                    }
+                }
+                
                 updateJuliaSet();
             }
         };
@@ -293,6 +382,8 @@ function onMouseClick(event) {
         webglRenderer.setCenter(event.clientX, event.clientY);
     } else if (juliaSet) {
         juliaSet.setCenter(event.clientX, event.clientY);
+        // Ensure scale is consistent here too
+        juliaSet.params.scale = config.scale;
     }
     
     show = true;
