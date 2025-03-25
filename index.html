@@ -20,14 +20,7 @@
 <body>
     <canvas id="canvas1"></canvas>
     
-    <!-- Make sure we're loading the correct script paths -->
-    <script>
-        // Get canvas context immediately to ensure it's available for the loop.js script
-        const canvas = document.getElementById('canvas1');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    </script>
-    <script src="loop.js"></script>
+    <!-- Use type="module" to enable ES6 modules -->
+    <script type="module" src="loop.js"></script>
 </body>
 </html>

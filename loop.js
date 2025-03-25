@@ -1,38 +1,13 @@
-// Make sure Complex class is defined first
-class Complex {
-    constructor(re, im) {
-        this.re = re;
-        this.im = im;
-    }
-    
-    abs() {
-        return Math.sqrt(this.re * this.re + this.im * this.im);
-    }
-    
-    multiply(b) {
-        return new Complex(
-            this.re * b.re - this.im * this.im,
-            this.re * b.im + this.im * b.re
-        );
-    }
-    
-    add(b) {
-        return new Complex(
-            this.re + b.re,
-            this.im + b.im
-        );
-    }
-}
+import { Complex } from './js/math/complex.js';
+import { initCanvas, clearCanvas, updateCanvasSize } from './js/rendering/canvas.js';
+import { JuliaSet } from './js/julia/julia-set.js';
 
 let msPrev = window.performance.now();
 const fps = 60;
 const msPerFrame = 1000 / fps;
 
-let canvas_width = window.innerWidth;
-let canvas_height=window.innerHeight;
-
-// These appear to be undeclared globals
-let mouse_x, mouse_y;
+let canvas, ctx, canvas_width, canvas_height;
+let animationID;
 
 let show = false;
 let colorMode = "colorful"; // Default to colorful
@@ -63,6 +38,9 @@ const presets = {
     'siegel disk': { re: -0.391, im: -0.587 }
 };
 
+// Julia set instance
+let juliaSet;
+
 const juliaParams = {
     c: new Complex(config.realPart, config.imaginaryPart),
     maxIterations: config.maxIterations,
@@ -76,58 +54,69 @@ let gui;
 
 // Ensure all DOM interactions happen after the document is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Get the canvas element and add click handler
-    const canvas = document.getElementById('canvas1');
-    if (!canvas) {
-        console.error('Canvas element not found!');
-        return;
-    }
+    // Initialize canvas
+    const canvasContext = initCanvas('canvas1');
+    canvas = canvasContext.canvas;
+    ctx = canvasContext.ctx;
     
-    canvas.addEventListener('click', onMouseClick);
+    // Get dimensions
+    const dimensions = updateCanvasSize();
+    canvas_width = dimensions.width;
+    canvas_height = dimensions.height;
     
-    // Add wheel event listener for zooming
-    canvas.addEventListener('wheel', function(event) {
-        event.preventDefault(); // Prevent page scrolling
-        
-        // Get mouse position
-        const mouseX = event.clientX;
-        const mouseY = event.clientY;
-        
-        // Calculate zoom factor based on wheel direction
-        const zoomFactor = event.deltaY < 0 ? 1.2 : 0.8; // Zoom in or out
-        
-        // Update scale
-        config.scale *= zoomFactor;
-        juliaParams.scale = config.scale;
-        
-        // Keep scale within reasonable bounds
-        config.scale = Math.max(50, Math.min(5000, config.scale));
-        juliaParams.scale = config.scale;
-        
-        // Update the GUI slider
-        for (let controller of Object.values(gui.__controllers)) {
-            if (controller.property === 'scale') {
-                controller.updateDisplay();
-                break;
-            }
-        }
-        
-        // Redraw Julia set with new scale
-        if (show) {
-            updateJuliaSet();
-        }
+    // Create Julia set instance
+    juliaSet = new JuliaSet({
+        c: juliaParams.c,
+        maxIterations: juliaParams.maxIterations,
+        scale: juliaParams.scale,
+        escapeRadius: juliaParams.escapeRadius,
+        center: juliaParams.center,
+        colorMode: colorMode
     });
+    
+    // Set up event listeners
+    canvas.addEventListener('click', onMouseClick);
+    canvas.addEventListener('wheel', onMouseWheel);
     
     // Setup dat.gui
     setupGUI();
     
     // Set initial center point
     juliaParams.center = { x: canvas_width / 2, y: canvas_height / 2 };
+    juliaSet.setCenter(juliaParams.center.x, juliaParams.center.y);
     
     // Create a first Julia set when page loads
     show = true;
     updateJuliaSet();
 });
+
+function onMouseWheel(event) {
+    event.preventDefault(); // Prevent page scrolling
+    
+    // Calculate zoom factor based on wheel direction
+    const zoomFactor = event.deltaY < 0 ? 1.2 : 0.8; // Zoom in or out
+    
+    // Update scale
+    config.scale *= zoomFactor;
+    juliaParams.scale = config.scale;
+    
+    // Keep scale within reasonable bounds
+    config.scale = Math.max(50, Math.min(5000, config.scale));
+    juliaParams.scale = config.scale;
+    
+    // Update the GUI slider
+    for (let controller of Object.values(gui.__controllers)) {
+        if (controller.property === 'scale') {
+            controller.updateDisplay();
+            break;
+        }
+    }
+    
+    // Redraw Julia set with new scale
+    if (show) {
+        updateJuliaSet();
+    }
+}
 
 function setupGUI() {
     gui = new dat.GUI({ width: 300 });
@@ -135,6 +124,7 @@ function setupGUI() {
     // Color mode
     gui.add(config, 'colorMode', ['colorful', 'blackwhite']).name('Color Mode').onChange(function(value) {
         colorMode = value;
+        juliaSet.setColorMode(value);
         updateJuliaSet();
     });
     
@@ -148,10 +138,12 @@ function setupGUI() {
     const renderFolder = gui.addFolder('Render Settings');
     renderFolder.add(config, 'maxIterations', 10, 500, 1).name('Max Iterations').onChange(function(value) {
         juliaParams.maxIterations = value;
+        juliaSet.params.maxIterations = value;
         updateJuliaSet();
     });
     renderFolder.add(config, 'scale', 50, 1000, 1).name('Scale').onChange(function(value) {
         juliaParams.scale = value;
+        juliaSet.params.scale = value;
         updateJuliaSet();
     });
     
@@ -185,109 +177,22 @@ function setupGUI() {
 
 function updateJuliaParameter() {
     juliaParams.c = new Complex(config.realPart, config.imaginaryPart);
+    juliaSet.params.c = juliaParams.c;
     updateJuliaSet();
 }
 
 function updateJuliaSet() {
-    DrawJuliaSet(juliaParams.c, juliaParams.maxIterations, juliaParams.scale);
+    juliaSet.draw();
 }
 
 function onMouseClick(event) {
     juliaParams.center = { x: event.clientX, y: event.clientY };
+    juliaSet.setCenter(event.clientX, event.clientY);
     show = true;
     updateJuliaSet();
 }
 
-function IsInJuliaSet(c, x, y, maxIterations, scale){
-    // Create z directly with the scaled coordinates
-    let z = new Complex((x - juliaParams.center.x) / scale, (y - juliaParams.center.y) / scale);
-
-    for(let i = 0; i < maxIterations; i++){
-        z = z.multiply(z).add(c);
-        if(z.abs() > juliaParams.escapeRadius){
-            return i;
-        }
-    }
-    return maxIterations;
-}
-
-function getColor(iterations, maxIterations) {
-    // Black & white mode
-    if (colorMode === "blackwhite") {
-        if (iterations === maxIterations) {
-            return [255, 255, 255, 255]; // White for points in the set
-        } else {
-            return [0, 0, 0, 255]; // Black for points outside the set
-        }
-    }
-    
-    // Colorful mode (original implementation)
-    if (iterations === maxIterations) return [0, 0, 0, 255]; // Black for set
-    
-    // Map iteration count to a smooth color gradient
-    const hue = 360 * iterations / maxIterations;
-    const saturation = 100;
-    const lightness = 50;
-    
-    // Convert HSL to RGB (simplified example)
-    const rgb = hslToRgb(hue, saturation, lightness);
-    return [...rgb, 255]; // RGB with alpha
-}
-
-// Add this helper function
-function hslToRgb(h, s, l) {
-    h /= 360;
-    s /= 100;
-    l /= 100;
-    
-    let r, g, b;
-    
-    if (s === 0) {
-        r = g = b = l;
-    } else {
-        const hue2rgb = (p, q, t) => {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-        };
-        
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-    }
-    
-    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-}
-
-function DrawJuliaSet(c, maxIterations, scale){
-    const imageData = ctx.createImageData(canvas_width, canvas_height);
-    const data = imageData.data;
-    
-    // Set background color based on mode
-    const backgroundColor = colorMode === "blackwhite" ? 0 : 255; // Black bg for B&W mode, white for colorful
-    
-    for(let y = 0; y < canvas_height; y++){
-        for(let x = 0; x < canvas_width; x++){
-            let iterations = IsInJuliaSet(c, x, y, maxIterations, scale);
-            const colorValues = getColor(iterations, maxIterations);
-            const index = (y * canvas_width + x) * 4;
-            data[index] = colorValues[0];
-            data[index + 1] = colorValues[1];
-            data[index + 2] = colorValues[2];
-            data[index + 3] = colorValues[3];
-        }
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
-}
-
-function Loop(){
+function Loop() {
    animationID = requestAnimationFrame(Loop);
 
    let msNow = window.performance.now();
@@ -301,14 +206,12 @@ function Loop(){
    dt = dt / 1000;
   
    // Clear screen
-   ctx.beginPath();
-   ctx.fillStyle = colorMode === "blackwhite" ? "black" : "white";
-   ctx.fillRect(0, 0, canvas.width, canvas.height);
+   clearCanvas(colorMode);
 
    // Update Julia set to always use the current parameter values
-   if (show){
+   if (show) {
         updateJuliaSet();
-   } 
+   }
 }
 
 Loop();
