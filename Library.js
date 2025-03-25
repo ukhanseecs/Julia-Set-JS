@@ -232,3 +232,32 @@ function FillCentroid(vertices){
     }
 
 }
+
+
+
+
+class Complex {
+    constructor(a, b) {
+        this.re = a;
+        this.im = b;
+    }
+    
+    // Fixed methods to work with chaining
+    abs() {
+        return Math.sqrt(this.re * this.re + this.im * this.im);
+    }
+    
+    multiply(b) {
+        return new Complex(
+            this.re * b.re - this.im * b.im,
+            this.re * b.im + this.im * b.re
+        );
+    }
+    
+    add(b) {
+        return new Complex(
+            this.re + b.re,
+            this.im + b.im
+        );
+    }
+}
